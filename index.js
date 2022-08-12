@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
+const bodyParser = require('body-parser');
+const dns = require('dns');
 
 // Basic Configuration
 const port = process.env.PORT || 3000;
@@ -9,6 +11,24 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 
 app.use('/public', express.static(`${process.cwd()}/public`));
+
+// Mount body-parser middleware for POST req
+app.use(bodyParser.urlencoded({extended : false}));
+
+// Shortened urls persistence (in-memory)
+let short_urls = [];
+
+// Strip http(s):// from url
+const parseHostName = (url)=>{
+  let re = /https?:\/\/(www\.\w+\.\w+)/;
+  let match = re.exec(url);
+  if (match){
+    return match[1]; // return first group
+  } 
+  return "";
+}
+
+// ENDPOINTS //
 
 app.get('/', function(req, res) {
   res.sendFile(process.cwd() + '/views/index.html');
@@ -18,6 +38,38 @@ app.get('/', function(req, res) {
 app.get('/api/hello', function(req, res) {
   res.json({ greeting: 'hello API' });
 });
+
+// url shortener
+app.post('/api/shorturl',
+  (req, res, next)=>{
+    let url = parseHostName(req.body.url);
+    let invalidUrl = {"error": "invalid url"};
+    let invalidHost = {"error": "Invalid Hostname"};
+
+    if (!url) return res.json(invalidUrl);
+    dns.lookup(url, (err)=>{
+      if (err) return res.json(invalidHost);
+      next();
+    });
+  }, (req, res)=>{
+    short_urls.push({
+      "original_url": req.body.url,
+      "short_url": short_urls.length
+    });
+    let result = short_urls[short_urls.length - 1];
+    res.json(result);
+  }
+);
+
+
+
+
+app.get('/api/shorturl/:number', (req, res)=>{
+  let shortU = req.params.number;
+  let notFound = {"error": "No short URL found for the given input"}
+  if (short_urls[shortU]) return res.json(short_urls[shortU]);
+  res.json(notFound);
+})
 
 app.listen(port, function() {
   console.log(`Listening on port ${port}`);
