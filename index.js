@@ -4,6 +4,7 @@ const cors = require('cors');
 const app = express();
 const bodyParser = require('body-parser');
 const dns = require('dns');
+const urlParser = require('url');
 
 // Basic Configuration
 const port = process.env.PORT || 3000;
@@ -20,12 +21,9 @@ let short_urls = [];
 
 // Strip http(s):// from url
 const parseHostName = (url)=>{
-  let re = /https?:\/\/(www\.\w+\.\w+)/;
-  let match = re.exec(url);
-  if (match){
-    return match[1]; // return first group
-  } 
-  return "";
+  const re = /^https?:\/\/\w+/
+  if (!re.test(url)) return "";
+  return urlParser.parse(url,true).hostname;
 }
 
 // ENDPOINTS //
@@ -40,6 +38,7 @@ app.get('/api/hello', function(req, res) {
 });
 
 // url shortener
+// TODO : debug  && add try catch logic
 app.post('/api/shorturl',
   (req, res, next)=>{
     let url = parseHostName(req.body.url);
@@ -67,8 +66,8 @@ app.post('/api/shorturl',
 app.get('/api/shorturl/:number', (req, res)=>{
   let shortU = req.params.number;
   let notFound = {"error": "No short URL found for the given input"}
-  if (short_urls[shortU]) return res.json(short_urls[shortU]);
-  res.json(notFound);
+  if (!short_urls[shortU]) return res.json(notFound);
+  res.redirect(short_urls[shortU].original_url);
 })
 
 app.listen(port, function() {
